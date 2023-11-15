@@ -1,0 +1,9 @@
+# general
+.vs
+.vscode
+.DS_Store
+
+# .Net
+bin/
+obj/
+*.csproj.user
