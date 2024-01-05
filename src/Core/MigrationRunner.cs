@@ -44,7 +44,8 @@ public class MigrationRunner
             foreach (var scriptFile in scriptFiles)
             {
                 var scriptName = Path.GetFileName(scriptFile);
-                if (!executedScripts.Contains(scriptName))
+
+                if (isUpMigration ? !executedScripts.Contains(scriptName) : executedScripts.Contains(scriptName))
                 {
                     var scriptContent = File.ReadAllText(scriptFile);
 
@@ -56,24 +57,31 @@ public class MigrationRunner
 
                     using (var transaction = connection.BeginTransaction())
                     {
-                        try
-                        {
-                            Console.WriteLine($"Executing script: {scriptName}");
-                            Console.WriteLine($"Script: {scriptToExecute}");
+                        Console.WriteLine($"Executing script: {scriptName}");
+                        Console.WriteLine($"Script: {scriptToExecute}");
 
-                            using (var command = new SqlCommand(scriptContent, connection, transaction))
+                        using (var command = new SqlCommand(scriptToExecute, connection, transaction))
+                        {
+                            try
                             {
                                 command.ExecuteNonQuery();
+
+                                if (isUpMigration)
+                                {
+                                    RecordScriptAsExecuted(scriptName, connection, transaction);
+                                }
+                                else
+                                {
+                                    RemoveScriptAsExecuted(scriptName, connection, transaction);
+                                }
+
+                                transaction.Commit();
                             }
-
-                            RecordScriptAsExecuted(scriptName, connection, transaction);
-
-                            transaction.Commit();
-                        }
-                        catch (Exception ex)
-                        {
-                            transaction.Rollback();
-                            throw new Exception("Error executing script " + scriptName, ex);
+                            catch (Exception ex)
+                            {
+                                transaction.Rollback();
+                                throw new Exception("Error executing script " + scriptName, ex);
+                            }
                         }
                     }
                 }
@@ -85,8 +93,8 @@ public class MigrationRunner
     {
         var sql = @"
             IF NOT EXISTS (
-                SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME='DatabaseMigrations')
-            CREATE TABLE [dbo].[DatabaseMigrations](
+                SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME='database_migrations')
+            CREATE TABLE [dbo].[database_migrations](
                 Id INT IDENTITY PRIMARY KEY,
                 ScriptName NVARCHAR(255),
                 Applied DATETIME DEFAULT GETDATE()
@@ -102,7 +110,7 @@ public class MigrationRunner
     private bool DatabaseMigrationsTableExists(SqlConnection connection)
     {
         var sql = @"
-            SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME='DatabaseMigrations'
+            SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME='database_migrations'
         ";
 
         using (var command = new SqlCommand(sql, connection))
@@ -127,7 +135,7 @@ public class MigrationRunner
                 return executedScripts;
             }
 
-            using (var command = new SqlCommand("SELECT ScriptName FROM DatabaseMigrations", connection))
+            using (var command = new SqlCommand("SELECT ScriptName FROM database_migrations", connection))
             {
                 using (var reader = command.ExecuteReader())
                 {
@@ -144,7 +152,16 @@ public class MigrationRunner
 
     private void RecordScriptAsExecuted(string scriptName, SqlConnection connection, SqlTransaction transaction)
     {
-        using (var command = new SqlCommand("INSERT INTO DatabaseMigrations (ScriptName) VALUES (@scriptName)", connection, transaction))
+        using (var command = new SqlCommand("INSERT INTO database_migrations (ScriptName) VALUES (@scriptName)", connection, transaction))
+        {
+            command.Parameters.AddWithValue("@scriptName", scriptName);
+            command.ExecuteNonQuery();
+        }
+    }
+
+    private void RemoveScriptAsExecuted(string scriptName, SqlConnection connection, SqlTransaction transaction)
+    {
+        using (var command = new SqlCommand("DELETE FROM database_migrations WHERE ScriptName = @scriptName", connection, transaction))
         {
             command.Parameters.AddWithValue("@scriptName", scriptName);
             command.ExecuteNonQuery();
