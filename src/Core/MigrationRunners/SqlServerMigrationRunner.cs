@@ -1,13 +1,14 @@
 using System.Data.SqlClient;
 
-namespace DevPunk.DbMigrator.Core;
+namespace DevPunk.DbMigrator.Core.MigrationRunners;
 
-public class MigrationRunner : IMigrationRunner
+public class SqlServerMigrationRunner : IMigrationRunner
 {
+    public const string Engine = "SqlServer";
     private readonly string _connectionString;
     private readonly string _scriptDirectory;
 
-    public MigrationRunner(string connectionString, string scriptDirectory)
+    public SqlServerMigrationRunner(string connectionString, string scriptDirectory)
     {
         _connectionString = connectionString;
         _scriptDirectory = scriptDirectory;

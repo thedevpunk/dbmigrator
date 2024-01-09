@@ -1,6 +1,8 @@
 ﻿// See https://aka.ms/new-console-template for more information
 using System.CommandLine;
+using System.Data;
 using DevPunk.DbMigrator.Core;
+using DevPunk.DbMigrator.Core.MigrationRunners;
 
 
 var directoryOption = new Option<DirectoryInfo>(
@@ -57,26 +59,40 @@ return rootCommand.InvokeAsync(args).Result;
 
 static void RunUpMigrations(string? to, DirectoryInfo directory, string engine, string? connectionString)
 {
-    if (string.IsNullOrWhiteSpace(connectionString))
-    {
-        throw new ArgumentException("Connection string is required");
-    }
-
-    var runner = new MigrationRunner(connectionString, directory.FullName);
-    runner.RunMigrations(true);
+    RunMigrations(true, to, directory, engine, connectionString);
 }
 
 static void RunDownMigrations(string? to, DirectoryInfo directory, string engine, string? connectionString)
+{
+    RunMigrations(false, to, directory, engine, connectionString);
+}
+
+static void RunMigrations(bool isUpMigration, string? to, DirectoryInfo directory, string engine, string? connectionString)
 {
     if (string.IsNullOrWhiteSpace(connectionString))
     {
         throw new ArgumentException("Connection string is required");
     }
 
-    var runner = new MigrationRunner(connectionString, directory.FullName);
-    runner.RunMigrations(false);
-}
+    switch (engine)
+    {
+        case SqlServerMigrationRunner.Engine:
+            var sqlServerRunner = new SqlServerMigrationRunner(connectionString, directory.FullName);
+            sqlServerRunner.RunMigrations(isUpMigration);
 
+            break;
+        case PostgresMigrationRunner.Engine:
+            var postgresRunner = new PostgresMigrationRunner(connectionString, directory.FullName);
+            postgresRunner.RunMigrations(isUpMigration);
+
+            break;
+        default:
+            Console.WriteLine($"Engine '{engine}' is not supported");
+            break;
+    }
+
+    Console.WriteLine("Migrated successfully");
+}
 
 // static void RunMigrations( bool up, bool down, string? to, string engine, string? connectionString)
 // {
