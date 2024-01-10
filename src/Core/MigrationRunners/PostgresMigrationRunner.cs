@@ -20,7 +20,9 @@ public class PostgresMigrationRunner : IMigrationRunner
 
         var executedScripts = GetExecutedScripts();
 
-        var scriptFiles = Directory.GetFiles(_scriptDirectory, "*.sql");
+        var sqlFiles = Directory.GetFiles(_scriptDirectory, "*.sql");
+        var pgsqlFiles = Directory.GetFiles(_scriptDirectory, "*.pgsql");
+        var scriptFiles = sqlFiles.Concat(pgsqlFiles).ToArray();
 
         if (isUpMigration)
         {
